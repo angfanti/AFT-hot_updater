@@ -1,2 +1,2 @@
-# window_updater
+# hot_updater
 热更新瑞士军刀
