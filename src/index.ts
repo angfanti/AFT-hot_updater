@@ -30,7 +30,7 @@ function checkOrFixOptions(options: IOption) {
 function showDoc() {
   const sections = [
     {
-      header: "更新工具",
+      header: "阿帆题更新工具",
       content: "默认生成gzip包。"
     },
     {
