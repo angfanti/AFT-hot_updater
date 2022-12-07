@@ -1,0 +1,10 @@
+/package-lock.json
+/node_modules/
+/out/
+/dist/
+/logs/
+/.idea/
+/pnpm-lock.yaml
+/yarn-error.log
+/yarn.lock
+/update_temp/
