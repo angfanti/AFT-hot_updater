@@ -1,4 +1,8 @@
 module.exports = {
+  globals: {
+    NodeJS: true,
+    BufferEncoding: true
+  },
   env: {
     es2021: true,
     node: true

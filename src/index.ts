@@ -1,14 +1,18 @@
 
-import { zipHashElement, hashElement, HashedFolderAndFileType } from "./core";
-import { join } from "path";
+import { zipHashElement, hashElement, HashedFolderAndFileType, diffVersionHash, handleHashedFolderChildrenToObject, zips } from "./core";
+import { getServiceHash } from "./net";
+import { resolve, join } from "path";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import commandLineArgs from "command-line-args";
 import commandLineUsage from "command-line-usage";
+import { UpdateJson } from "../types/type";
 
 // 命令解析
 interface IOption {
   pack: boolean;
   ungzip?: boolean;
+  ddif?: boolean;
+  url?: string;
   help: boolean;
   output: string;
   target: string;
@@ -47,6 +51,12 @@ function showDoc() {
           description: "不使用gzip压缩(仅生成hash",
           type: String,
           alias: "z"
+        },
+        {
+          name: "ddif",
+          description: "是否ddif比较",
+          type: Boolean,
+          alias: "d"
         },
         {
           name: "help",
@@ -124,8 +134,41 @@ async function startPack(options: IOption) {
     writeFileSync(join(_options.output, _options.updateJsonName + ".json"), JSON.stringify({
       version: _options.version,
       targetPath: _options.target + _options.version,
-      hash: hash
+      hash
     }, null, 2));
+    if (_options.ddif) {
+      console.log("\n  ddif计算");
+      //这块是我的代码
+      if (_options.url) {
+        let json: UpdateJson | null = null
+        try {
+          json = await getServiceHash(_options.url)
+        } catch (error) {
+          console.log("\n  请求异常");
+        }
+        if (json) {
+          handleHashedFolderChildrenToObject(json.hash);
+          const diffResult = diffVersionHash(json.hash, hash!);
+
+          let changeds = await Promise.all(diffResult.changed.map(item => {
+            return resolve(join(_options.input, item.filePath))
+          }));
+          let addeds = await Promise.all(diffResult.added.map(item => {
+            return resolve(join(_options.input, item.filePath))
+          }));
+
+          try {
+            zips([...changeds, ...addeds], resolve(join(_options.output, 'Update.zip')))
+          } catch (error) {
+            console.log("\n  压缩异常");
+          }
+        } else {
+          console.log("\n  远程配置文件错误");
+        }
+      } else {
+        console.log("\n  ddif失败,未设置url");
+      }
+    }
     console.log(
       "\n" + (" 完成 ") + "  " + "The resource file is packaged!\n"
     );
@@ -146,6 +189,7 @@ async function start() {
   const optionDefinitions = [
     { name: "pack", alias: "p", type: Boolean, defaultValue: false },
     { name: "ungzip", alias: "z", type: Boolean, defaultValue: false },
+    { name: "ddif", alias: "d", type: Boolean, defaultValue: true },
     { name: "help", alias: "h", type: Boolean, defaultValue: true },
     { name: "output", alias: "o", type: String, defaultValue: "./build" },
     { name: "target", alias: "t", type: String, defaultValue: "gzip" },

@@ -4,6 +4,7 @@ import { statSync, readFileSync, readdirSync, createWriteStream, createReadStrea
 import { makeRe } from "minimatch";
 import { DiffVersionHashResult, DiffVersionHashResultItem, DownloadFn, HashedFile, HashedFolder, HashedFolderAndFileType, HashedFolderAndFileTypeObject, HashElementOptions, UpdateInfo, UpdateJson, UpdateStatus } from "./type";
 import { createGzip, createGunzip } from "zlib";
+import archiver from "archiver";
 import gt from "semver/functions/gt";
 import { spawn } from "child_process";
 
@@ -13,7 +14,7 @@ import { spawn } from "child_process";
  * @param {(Buffer | string)} data
  * @returns
  */
-export function hash256 (data: Buffer | string) {
+export function hash256(data: Buffer | string) {
   return createHash("sha256").update(data).digest("hex");
 }
 
@@ -24,7 +25,7 @@ export function hash256 (data: Buffer | string) {
  * @param {string} param
  * @returns {boolean}
  */
-export function reduceGlobPatterns (globs: string[] | undefined | ((str: string) => boolean), param: string): boolean {
+export function reduceGlobPatterns(globs: string[] | undefined | ((str: string) => boolean), param: string): boolean {
   if (typeof globs === "function") {
     return globs(param);
   } else if (!globs || !Array.isArray(globs) || globs.length === 0) {
@@ -50,7 +51,7 @@ export function reduceGlobPatterns (globs: string[] | undefined | ((str: string)
  * @param {HashElementOptions} options
  * @returns {HashedFolderAndFileType}
  */
-export function hashElement (dirOrFilePath: string, options: HashElementOptions = {}): HashedFolderAndFileType | null {
+export function hashElement(dirOrFilePath: string, options: HashElementOptions = {}): HashedFolderAndFileType | null {
   const fileOrDir = statSync(dirOrFilePath);
   const baseName = basename(dirOrFilePath);
   if (fileOrDir.isFile()) {
@@ -81,7 +82,7 @@ export function hashElement (dirOrFilePath: string, options: HashElementOptions 
  *
  * @param {HashedFolder} data
  */
-export function handleHashedFolderChildrenToObject (data: HashedFolderAndFileType) {
+export function handleHashedFolderChildrenToObject(data: HashedFolderAndFileType) {
   if (data && (data as HashedFolder).children) {
     (data as HashedFolder).childrenObject = (data as HashedFolder).children!.reduce((prev, next) => {
       if ((next as HashedFolder).children) {
@@ -102,7 +103,7 @@ export function handleHashedFolderChildrenToObject (data: HashedFolderAndFileTyp
  * @param {string} path 文件路径
  * @returns
  */
-export function diffVersionHash (oldVersion: HashedFolder, newVersion: HashedFolder, result: DiffVersionHashResult = new DiffVersionHashResult(), path: string = ".") {
+ export function diffVersionHash (oldVersion: HashedFolder, newVersion: HashedFolder, result: DiffVersionHashResult = new DiffVersionHashResult(), path: string = ".") {
   // 不管是文件夹还是文件 hash一样就返回
   if (newVersion.hash === oldVersion.hash) {
     return result;
@@ -153,7 +154,7 @@ export function pushdiffVersionHashResult (item: HashedFolderAndFileType, path: 
  * @param {string} targetPath
  * @return {*}
  */
-export function gzip (source: string, targetPath: string): Promise<void> { // source文件目录
+export function gzip(source: string, targetPath: string): Promise<void> { // source文件目录
   return new Promise((resolve, reject: (err: Error) => void) => {
     const gzip = createGzip(); // 转化流 可读可写
     const writeStream = createWriteStream(targetPath);
@@ -165,6 +166,26 @@ export function gzip (source: string, targetPath: string): Promise<void> { // so
   });
 }
 
+export function zips(source: string[], target: string): Promise<void> { // source文件目录
+  return new Promise((resolve, reject: (err: Error) => void) => {
+    const writeStream = createWriteStream(target);
+    const archive = archiver('zip', {
+      zlib: { level: 9 }
+    });
+    writeStream.on("error", reject);
+    archive.on('error', reject)
+    archive.on('close', resolve)
+    for (const s of source) {
+      archive.append(createReadStream(s), {
+        name: basename(s)
+      })
+    }
+    archive.finalize()
+    archive.pipe(writeStream)
+  });
+}
+
+
 /**
  * hashElement后将对应的数据gzip压缩
  *
@@ -174,7 +195,7 @@ export function gzip (source: string, targetPath: string): Promise<void> { // so
  * @param {string} targetPath
  * @param {boolean} [ignoreFirstDir=false]
  */
-export async function zipHashElement (data: HashedFolderAndFileType, path: string, targetPath: string, ignoreFirstDir: boolean = false) {
+export async function zipHashElement(data: HashedFolderAndFileType, path: string, targetPath: string, ignoreFirstDir: boolean = false) {
   if ((data as HashedFolder).children) {
     for (let i = 0; i < (data as HashedFolder).children!.length; i++) {
       await zipHashElement((data as HashedFolder).children![i] as HashedFolderAndFileType, path + (ignoreFirstDir ? "" : "/" + data.name), targetPath);
@@ -199,7 +220,7 @@ export async function zipHashElement (data: HashedFolderAndFileType, path: strin
  * @param {DownloadFn} downloadFn  下载函数
  * @param {HashElementOptions} [options={files: {}}] 通过option 配置文件排除文件文件夹或指定后缀folders: { exclude: ['.*', 'node_modules', 'test_coverage'] },files: { exclude: ['*.js', '*.json'] },
  */
-export async function updateElectron (
+export async function updateElectron(
   statusCallBack: (updateInfo: UpdateInfo) => void,
   updaterName: string,
   version: string,
@@ -229,7 +250,6 @@ export async function updateElectron (
       // 写入更新配置文件
       writeFileSync(join(tempDirectory, updateConfigName + ".json"), JSON.stringify(diffResult, null, 2));
       // 下载
-      console.log(diffResult);
       statusCallBack(updateInfo);
 
       if (!baseUrl.endsWith("/")) {
@@ -279,7 +299,7 @@ export async function updateElectron (
  * @param {DownloadFn} downloadFn 下载工具
  * @return {*}  {Promise<boolean>}
  */
-function downAndungzip (sourceHash: string, sourceUrl: string, targetPath: string, downloadFn: DownloadFn): Promise<boolean> {
+function downAndungzip(sourceHash: string, sourceUrl: string, targetPath: string, downloadFn: DownloadFn): Promise<boolean> {
   return new Promise((resolve, reject) => {
     // 防止多次下载
     if (existsSync(targetPath) && (hash256(readFileSync(targetPath)) === sourceHash)) {
