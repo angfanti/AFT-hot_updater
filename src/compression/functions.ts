@@ -1,6 +1,6 @@
 import { executionFileAbsolute, Snowflake } from "./";
 import { resolve } from "node:path";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, unlinkSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 type config = {
@@ -10,10 +10,10 @@ type config = {
 }
 
 
-export function zips(config: config): Promise<void> { // source文件目录
+export function zips(config: config) {
 
-    let configFileName = new Snowflake(1n, 2n).nextId().toString().concat('.json')
-    let configFilePath = resolve(configFileName)
+    let configFilePath = resolve(new Snowflake(1n, 2n).nextId().toString().concat('.json'))
+
     try {
         writeFileSync(configFilePath, JSON.stringify(config, null, 2), { encoding: 'utf-8' });
     } catch (error) {
@@ -26,5 +26,9 @@ export function zips(config: config): Promise<void> { // source文件目录
         console.log("\n  压缩异常");
     }
 
-    return new Promise<void>(() => { })
+    try {
+        unlinkSync(configFilePath)
+    } catch (error) {
+        console.log("\n  移除临时配置文件异常");
+    }
 }
