@@ -1,11 +1,13 @@
 
-import { zipHashElement, hashElement, HashedFolderAndFileType, diffVersionHash, handleHashedFolderChildrenToObject, zips } from "./core";
+import { zipHashElement, hashElement, HashedFolderAndFileType, diffVersionHash, handleHashedFolderChildrenToObject } from "./core";
 import { getServiceHash } from "./net";
 import { resolve, join } from "path";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import commandLineArgs from "command-line-args";
 import commandLineUsage from "command-line-usage";
 import { UpdateJson } from "../types/type";
+import { zips } from "./compression";
+
 
 // 命令解析
 interface IOption {
@@ -138,7 +140,6 @@ async function startPack(options: IOption) {
     }, null, 2));
     if (_options.ddif) {
       console.log("\n  ddif计算");
-      //这块是我的代码
       if (_options.url) {
         let json: UpdateJson | null = null
         try {
@@ -151,14 +152,19 @@ async function startPack(options: IOption) {
           const diffResult = diffVersionHash(json.hash, hash!);
 
           let changeds = await Promise.all(diffResult.changed.map(item => {
-            return resolve(join(_options.input, item.filePath))
+            return item.filePath
           }));
           let addeds = await Promise.all(diffResult.added.map(item => {
-            return resolve(join(_options.input, item.filePath))
+            return item.filePath
           }));
 
           try {
-            zips([...changeds, ...addeds], resolve(join(_options.output, 'Update.zip')))
+            console.log("\n  开始压缩");
+            zips({
+              zipPath: resolve(join(_options.output, 'Update.zip')),
+              sourceFolder: resolve(_options.input),
+              src: [...changeds, ...addeds]
+            })
           } catch (error) {
             console.log("\n  压缩异常");
           }
@@ -208,4 +214,8 @@ async function start() {
     showDoc();
   }
 }
+
+
+
+
 start();

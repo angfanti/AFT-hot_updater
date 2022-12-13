@@ -4,7 +4,6 @@ import { statSync, readFileSync, readdirSync, createWriteStream, createReadStrea
 import { makeRe } from "minimatch";
 import { DiffVersionHashResult, DiffVersionHashResultItem, DownloadFn, HashedFile, HashedFolder, HashedFolderAndFileType, HashedFolderAndFileTypeObject, HashElementOptions, UpdateInfo, UpdateJson, UpdateStatus } from "./type";
 import { createGzip, createGunzip } from "zlib";
-import archiver from "archiver";
 import gt from "semver/functions/gt";
 import { spawn } from "child_process";
 
@@ -166,24 +165,7 @@ export function gzip(source: string, targetPath: string): Promise<void> { // sou
   });
 }
 
-export function zips(source: string[], target: string): Promise<void> { // source文件目录
-  return new Promise((resolve, reject: (err: Error) => void) => {
-    const writeStream = createWriteStream(target);
-    const archive = archiver('zip', {
-      zlib: { level: 9 }
-    });
-    writeStream.on("error", reject);
-    archive.on('error', reject)
-    archive.on('close', resolve)
-    for (const s of source) {
-      archive.append(createReadStream(s), {
-        name: basename(s)
-      })
-    }
-    archive.finalize()
-    archive.pipe(writeStream)
-  });
-}
+
 
 
 /**
